@@ -15,125 +15,88 @@ from pathlib import Path
 # Donut-style brightness gradient
 GRADIENT = '.,-~:;=!*#$@'
 # ANSI grayscale range for 256-color: 232 (dark) to 255 (bright)
-GS_MIN, GS_MAX = 232, 255
+GS_MIN, GS_MAX = 245, 255
 LIGHT_DIR = (0.0, 0.0, 1.0)
-
-
-def load_surface_OLD(path):
-    spec = yaml.safe_load(open(path))
-    u, v = sp.symbols(spec['vars'])
-    umin, umax = spec['domain']['u']
-    θmin, θmax = spec['domain']['θ']
-
-    # base namespace for sympify
-    ns = {
-        'u': u,
-        'θ': v,
-        'u_min': umin,
-        'u_max': umax,
-        'sin': sp.sin,
-        'cos': sp.cos,
-        'pi': sp.pi,
-        # basic math ops
-    }
-
-    # collect only real lines, skip comments
-    raw = spec['equations'].splitlines()
-    lines = [l.strip() for l in raw if l.strip() and not l.strip().startswith('#')]
-
-    # sequentially sympify each assignment into ns
-    for line in lines:
-        name, expr = [part.strip() for part in line.split('=', 1)]
-        ns[name] = sp.sympify(expr, locals=ns)
-
-    # extract the final x,y,z symbols
-    x_s = ns.get('x')
-    y_s = ns.get('y')
-    z_s = ns.get('z')
-    if not all((x_s, y_s, z_s)):
-        raise ValueError("`equations` must define x, y, and z.")
-
-    # compute partial derivatives for normals
-    xu, xv = sp.diff(x_s, u), sp.diff(x_s, v)
-    yu, yv = sp.diff(y_s, u), sp.diff(y_s, v)
-    zu, zv = sp.diff(z_s, u), sp.diff(z_s, v)
-
-    # lambdify
-    f_xyz = sp.lambdify((u, v), (x_s, y_s, z_s), 'math')
-    f_du = sp.lambdify((u, v), (xu, yu, zu), 'math')
-    f_dv = sp.lambdify((u, v), (xv, yv, zv), 'math')
-
-    def point(a, b):
-        return f_xyz(a, b)
-
-    def normal(a, b):
-        ax, ay, az = f_du(a, b)
-        bx, by, bz = f_dv(a, b)
-        nx, ny, nz = (
-            ay * bz - az * by,
-            az * bx - ax * bz,
-            ax * by - ay * bx,
-        )
-        L = math.sqrt(nx * nx + ny * ny + nz * nz) or 1.0
-        return (nx / L, ny / L, nz / L)
-
-    def ranges():
-        return (umin, umax, θmin, θmax)
-
-    return point, normal, ranges
+DELAY = 0.01
 
 
 def load_surface(path):
     spec = yaml.safe_load(open(path))
-    u, v = sp.symbols(spec['vars'])
+    var_names = spec['vars']
+    if len(var_names) != 2:
+        raise ValueError('Exactly two parameters are required.')
 
-    umin = sp.sympify(spec['domain']['u'][0], locals={'pi': sp.pi})
-    umax = sp.sympify(spec['domain']['u'][1], locals={'pi': sp.pi})
-    θmin = sp.sympify(spec['domain']['θ'][0], locals={'pi': sp.pi})
-    θmax = sp.sympify(spec['domain']['θ'][1], locals={'pi': sp.pi})
+    # Read optional normal sign
+    normal_sign = spec.get('normal_sign', 1)
+    if normal_sign not in (-1, 1):
+        raise ValueError("normal_sign must be -1 or 1")
 
-    umin = float(umin)
-    umax = float(umax)
-    θmin = float(θmin)
-    θmax = float(θmax)
+    # Make symbols
+    symbols = [sp.Symbol(name) for name in var_names]
+    var_a, var_b = symbols
+    name_a, name_b = var_names
 
-    # base namespace for sympify
+    # Sympify domain bounds
+    domain_locals = {'pi': sp.pi, 'PI': sp.pi}
+    dom_a = [float(sp.sympify(x, locals=domain_locals)) for x in spec['domain'][name_a]]
+    dom_b = [float(sp.sympify(x, locals=domain_locals)) for x in spec['domain'][name_b]]
+
+    # Build sympify namespace
     ns = {
-        'u': u,
-        'θ': v,
-        'u_min': umin,
-        'u_max': umax,
+        name_a: var_a,
+        name_b: var_b,
         'sin': sp.sin,
         'cos': sp.cos,
+        'tan': sp.tan,
+        'atan2': sp.atan2,
+        'sqrt': sp.sqrt,
         'pi': sp.pi,
-        # basic math ops
+        'acos': sp.acos,
+        f'{name_a}_min': dom_a[0],
+        f'{name_a}_max': dom_a[1],
+        f'{name_b}_min': dom_b[0],
+        f'{name_b}_max': dom_b[1],
     }
 
-    # collect only real lines, skip comments
+    # Collect equation lines
     raw = spec['equations'].splitlines()
     lines = [l.strip() for l in raw if l.strip() and not l.strip().startswith('#')]
 
-    # sequentially sympify each assignment into ns
+    # Evaluate assignments
     for line in lines:
         name, expr = [part.strip() for part in line.split('=', 1)]
         ns[name] = sp.sympify(expr, locals=ns)
 
-    # extract the final x,y,z symbols
+    # Final coordinates
     x_s = ns.get('x')
     y_s = ns.get('y')
     z_s = ns.get('z')
     if not all((x_s, y_s, z_s)):
-        raise ValueError("`equations` must define x, y, and z.")
+        raise ValueError("`equations` must define x, y, z.")
 
-    # compute partial derivatives for normals
-    xu, xv = sp.diff(x_s, u), sp.diff(x_s, v)
-    yu, yv = sp.diff(y_s, u), sp.diff(y_s, v)
-    zu, zv = sp.diff(z_s, u), sp.diff(z_s, v)
+    # Derivatives
+    xu, xv = sp.diff(x_s, var_a), sp.diff(x_s, var_b)
+    yu, yv = sp.diff(y_s, var_a), sp.diff(y_s, var_b)
+    zu, zv = sp.diff(z_s, var_a), sp.diff(z_s, var_b)
 
-    # lambdify
-    f_xyz = sp.lambdify((u, v), (x_s, y_s, z_s), 'math')
-    f_du = sp.lambdify((u, v), (xu, yu, zu), 'math')
-    f_dv = sp.lambdify((u, v), (xv, yv, zv), 'math')
+    # Lambdify, allowing partial-derivative nodes in the generated code
+    from sympy.printing.pycode import PythonCodePrinter
+
+    printer = PythonCodePrinter({'strict': False})
+    f_xyz = sp.lambdify((var_a, var_b), (x_s, y_s, z_s), 'math', printer=printer)
+    f_du = sp.lambdify((var_a, var_b), (xu, yu, zu), 'math', printer=printer)
+    f_dv = sp.lambdify((var_a, var_b), (xv, yv, zv), 'math', printer=printer)
+
+    # Inject missing helpers into the generated functions' global namespaces
+    helpers = {
+        'math': math,
+        're':   lambda z: z,          # real part (our inputs are real)
+        'im':   lambda z: 0.0,        # imaginary part → always 0 here
+        'sign': lambda x: (x > 0) - (x < 0),   # used by d/dx Abs(x)
+    }
+
+    for fn in (f_xyz, f_du, f_dv):
+        fn.__globals__.update(helpers)
 
     def point(a, b):
         return f_xyz(a, b)
@@ -141,16 +104,19 @@ def load_surface(path):
     def normal(a, b):
         ax, ay, az = f_du(a, b)
         bx, by, bz = f_dv(a, b)
+
         nx, ny, nz = (
-            ay * bz - az * by,
-            az * bx - ax * bz,
-            ax * by - ay * bx,
+            by * az - bz * ay,
+            bz * ax - bx * az,
+            bx * ay - by * ax,
         )
+
         L = math.sqrt(nx * nx + ny * ny + nz * nz) or 1.0
-        return (nx / L, ny / L, nz / L)
+
+        return (normal_sign * nx / L, normal_sign * ny / L, normal_sign * nz / L)
 
     def ranges():
-        return (umin, umax, θmin, θmax)
+        return (*dom_a, *dom_b)
 
     return point, normal, ranges
 
@@ -219,8 +185,7 @@ def main():
     p.add_argument('--speed', type=float, default=0.5)
     p.add_argument('--vspeed', type=float)
     p.add_argument('--no-color', action='store_true')
-    p.add_argument('--shape-dir', type=str, default='shapes')
-    p.add_argument('--shape', type=str, default='boy.yaml')
+    p.add_argument('--shape-path', type=str, default='shapes/boy.yaml')
     args = p.parse_args()
 
     vs = args.vspeed if args.vspeed is not None else args.speed
@@ -229,7 +194,7 @@ def main():
     cols -= 2
     rows -= 2
 
-    shape_path = Path(args.shape_dir, args.shape)
+    shape_path = Path(args.shape_path)
     point_fn, normal_fn, ranges_fn = load_surface(shape_path)
     domain = ranges_fn()
     mesh = build_mesh((point_fn, normal_fn, domain), args.radial, args.angular)
@@ -240,7 +205,7 @@ def main():
         while True:
             t = time.time() - t0
             render(mesh, cols, rows, t * args.speed, t * vs, args.zoom, not args.no_color)
-            time.sleep(0.03)
+            time.sleep(DELAY)
     finally:
         sys.stdout.write('\033[?25h')
         sys.stdout.write('\n')
