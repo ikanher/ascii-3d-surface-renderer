@@ -90,9 +90,9 @@ def load_surface(path):
     # Inject missing helpers into the generated functions' global namespaces
     helpers = {
         'math': math,
-        're':   lambda z: z,          # real part (our inputs are real)
-        'im':   lambda z: 0.0,        # imaginary part → always 0 here
-        'sign': lambda x: (x > 0) - (x < 0),   # used by d/dx Abs(x)
+        're': lambda z: z,  # real part (our inputs are real)
+        'im': lambda z: 0.0,  # imaginary part → always 0 here
+        'sign': lambda x: (x > 0) - (x < 0),  # used by d/dx Abs(x)
     }
 
     for fn in (f_xyz, f_du, f_dv):
@@ -129,7 +129,14 @@ def build_mesh(loader, radial, angular):
         u = u0 + (i + 0.5) / radial * (u1 - u0)
         for j in range(angular):
             v = v0 + j / angular * (v1 - v0)
-            mesh.append((point(u, v), normal(u, v)))
+            try:
+                P = point(u, v)
+                N = normal(u, v)
+            except (ValueError, ZeroDivisionError):  # math domain / singularities
+                continue
+            if not all(math.isfinite(c) for c in (*P, *N)):
+                continue
+            mesh.append((P, N))
     return mesh
 
 

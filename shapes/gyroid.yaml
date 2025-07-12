@@ -1,0 +1,20 @@
+# Top-level keys (all required):
+vars: [u, v]
+domain:
+  u: [0, 2*pi]
+  v: [0, 2*pi]
+equations: |
+  # Solve sin(x)cos(y) + sin(y)cos(z) + sin(z)cos(x) = 0
+  # with x=u, y=v, for z explicitly via the identity
+  A   = sin(v)
+  B   = cos(u)
+  C   = -sin(u) * cos(v)
+  R   = sqrt(A**2 + B**2)
+  phi = atan2(B, A)
+
+  # explicit branch of z:
+  z   = acos(C / R) + phi
+
+  # parameters to Cartesian
+  x   = u
+  y   = v
