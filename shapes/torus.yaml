@@ -2,15 +2,16 @@
 vars: [u, v]
 domain:
   u: [0, 2*pi]
-  v: [-0.5, 0.5]
+  v: [0, 2*pi]
 equations: |
   # Half-twist angle
   half_twist = u / 2
 
   # Radius of the central circle
   R = 1
+  r = 0.3
 
   # Final coordinates:
-  x = (R + v * cos(half_twist)) * cos(u)
-  y = (R + v * cos(half_twist)) * sin(u)
-  z = v * sin(half_twist)
+  x = (R + r*cos(v)) * cos(u)
+  y = (R + r*cos(v)) * sin(u)
+  z = r*sin(v)

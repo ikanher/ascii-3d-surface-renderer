@@ -1,23 +1,23 @@
-import cmath
-import math
-import time
-import shutil
-import sys
-import signal
 import argparse
-
-
-import yaml, math
-import sympy as sp
-
+import math
+import shutil
+import signal
+import sys
+import time
 from pathlib import Path
+
+import sympy as sp
+import yaml
 
 # Donut-style brightness gradient
 GRADIENT = '.,-~:;=!*#$@'
+
 # ANSI grayscale range for 256-color: 232 (dark) to 255 (bright)
-GS_MIN, GS_MAX = 245, 255
-LIGHT_DIR = (0.0, 0.0, 1.0)
+GS_MIN, GS_MAX = 232, 255  # full ANSI grayscale ramp
 DELAY = 0.01
+
+# Light direction will be overrider from CLI defaults
+LIGHT_DIR = None
 
 
 def load_surface(path):
@@ -153,7 +153,7 @@ def rotate_y(p, a):
 
 
 def shade_char(intensity, use_color):
-    idx = min(int(intensity * (len(GRADIENT) - 1)), len(GRADIENT) - 1)
+    idx = round(intensity * (len(GRADIENT) - 1))
     char = GRADIENT[idx]
     if use_color and intensity >= 0:
         code = GS_MIN + int(intensity * (GS_MAX - GS_MIN))
@@ -176,7 +176,8 @@ def render(mesh, cols, rows, ah, av, zoom, use_color):
                 0.0, n1[0] * LIGHT_DIR[0] + n1[1] * LIGHT_DIR[1] + n1[2] * LIGHT_DIR[2]
             )
             # gamma boost
-            intensity = math.sqrt(intensity)
+            #intensity = math.sqrt(intensity)
+            intensity **= 0.4
             frame[gy][gx] = shade_char(intensity, use_color)
     sys.stdout.write('\033[H')
     for row in frame:
@@ -186,9 +187,10 @@ def render(mesh, cols, rows, ah, av, zoom, use_color):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--zoom', type=float, default=1.0)
-    p.add_argument('--radial', type=int, default=30)
-    p.add_argument('--angular', type=int, default=180)
+    p.add_argument('--light', default='1,1,0', help='comma separated XYZ for light direction')
+    p.add_argument('--zoom', type=float, default=0.5)
+    p.add_argument('--radial', type=int, default=60)
+    p.add_argument('--angular', type=int, default=360)
     p.add_argument('--speed', type=float, default=0.5)
     p.add_argument('--vspeed', type=float)
     p.add_argument('--no-color', action='store_true')
@@ -197,9 +199,17 @@ def main():
 
     vs = args.vspeed if args.vspeed is not None else args.speed
     signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
+
     cols, rows = shutil.get_terminal_size()
     cols -= 2
     rows -= 2
+
+    lx, ly, lz = map(float, args.light.split(','))
+    L = math.sqrt(lx * lx + ly * ly + lz * lz) or 1.0
+
+    # Set the light direction global variable
+    global LIGHT_DIR
+    LIGHT_DIR = (lx / L, ly / L, lz / L)
 
     shape_path = Path(args.shape_path)
     point_fn, normal_fn, ranges_fn = load_surface(shape_path)
