@@ -1,0 +1,11 @@
+# Sphere
+vars: [u, v]
+domain:
+  u: [0, 4*pi]
+  v: [0.1, pi - 0.1]
+equations: |
+  r = 1.0
+  b = 1.0
+  x = r * cos(u) * sin(v)
+  y = r * sin(u) * sin(v)
+  z = r * (cos(v) + log(tan(v/2))) + b * u
