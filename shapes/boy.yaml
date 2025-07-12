@@ -1,29 +1,31 @@
-# Boy's Surface
-vars: [u, θ]
+# Boy's Surface (Souriau parametrization)
+# Semi-empirical model from Jérôme Souriau (1981)
+
+vars: [mu, theta]
+
 domain:
-  u: [0.0, 1.0]
-  θ: [0.0, 6.283185307179586]   # 2π
-normal_sign: -1
+  mu: [0, 3.141592653589793]         # 0 to pi
+  theta: [0, 6.283185307179586]      # 0 to 2pi
+
 equations: |
-  # denominator (real part of w^6 + √5·w^3 − 1)
-  den_raw = u**6*cos(6*θ) + 5**0.5*u**3*cos(3*θ) - 1
+  pi = 3.141592653589793
 
-  # NB: can't use `abs` here, hence sqrt(x^2)
-  den     = sqrt(den_raw**2 + 1e-12)  # always positive, smoothly differentiable
+  # alpha = pi/8 * sin(3*mu)
+  alpha = (pi / 8) * sin(3 * mu)
 
-  # g1 = -1.5·Im[w·(1−w^4)]/den = -1.5·(u·sinθ - u^5·sin5θ)/den
-  g1   = -1.5*(u*sin(θ) - u**5*sin(5*θ)) / den
+  # A(mu)
+  A = 10 + 1.41 * sin(6*mu - pi/3) + 1.98 * sin(3*mu - pi/6)
 
-  # g2 = -1.5·Re[w·(1+w^4)]/den = -1.5·(u·cosθ + u^5·cos5θ)/den
-  g2   = -1.5*(u*cos(θ) + u**5*cos(5*θ)) / den
+  # B(mu)
+  B = 10 + 1.41 * sin(6*mu - pi/3) - 1.98 * sin(3*mu - pi/6)
 
-  # g3 = Im[1 + w^6]/den − 0.5 = (u^6·sin6θ)/den − 0.5
-  g3   = u**6*sin(6*θ) / den - 0.5
+  # X1
+  X1 = (A**2 - B**2) / sqrt(A**2 + B**2) + A*cos(theta) - B*sin(theta)
 
-  # normalize
-  norm = (g1**2 + g2**2 + g3**2)**0.5
+  # Z1
+  Z1 = sqrt(A**2 + B**2) + A*cos(theta) + B*sin(theta)
 
-  # final xyz
-  x = g1 / norm
-  y = g2 / norm
-  z = g3 / norm
+  # Final coordinates
+  x = X1 * cos(mu) - Z1 * sin(alpha) * sin(mu)
+  y = X1 * sin(mu) + Z1 * sin(alpha) * cos(mu)
+  z = Z1 * cos(alpha)
