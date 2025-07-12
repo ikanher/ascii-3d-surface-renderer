@@ -1,0 +1,19 @@
+# Figure-Eight Klein Bottle
+# (immersed in ℝ³, self-intersects at the "neck", looks like
+# a true bottle rather than a fat torus)
+#
+# Reference: Paul Bourke’s parametrisation, rescaled by 1/15.
+vars: [u, v]
+domain:
+  u: [0, 2*pi]    # longitude
+  v: [0, 2*pi]    # meridian
+equations: |
+  scale = 1/15
+  cu    = cos(u)
+  su    = sin(u)
+  cv    = cos(v)
+  sv    = sin(v)
+
+  x = scale * cu * (3*cv - 30*su + 90*cu**4*su - 60*cu**6*su + 5*cu*cv*su)
+  y = scale * su * (3*cv - 3*cu**2*cv - 48*cu**4*cv + 48*cu**6*cv - 60*su + 5*cu*cv*su - 5*cu**3*cv*su - 80*cu**5*cv*su + 80*cu**7*cv*su)
+  z = scale * (3 + 5*cu*su) * sv
