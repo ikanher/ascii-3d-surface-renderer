@@ -16,8 +16,8 @@ GRADIENT = '.,-~:;=!*#$@'
 GS_MIN, GS_MAX = 232, 255  # full ANSI grayscale ramp
 DELAY = 0.01
 
-# Light direction will be overrider from CLI defaults
-LIGHT_DIR = None
+# Light direction will be overrider from CLI
+LIGHT_DIR = (1 / math.sqrt(2), 1 / math.sqrt(2), 0)
 
 
 def load_surface(path):
@@ -176,7 +176,7 @@ def render(mesh, cols, rows, ah, av, zoom, use_color):
                 0.0, n1[0] * LIGHT_DIR[0] + n1[1] * LIGHT_DIR[1] + n1[2] * LIGHT_DIR[2]
             )
             # gamma boost
-            #intensity = math.sqrt(intensity)
+            # intensity = math.sqrt(intensity)
             intensity **= 0.4
             frame[gy][gx] = shade_char(intensity, use_color)
     sys.stdout.write('\033[H')
@@ -188,14 +188,20 @@ def render(mesh, cols, rows, ah, av, zoom, use_color):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--light', default='1,1,0', help='comma separated XYZ for light direction')
+    p.add_argument(
+        '--orbit-light', action='store_true', help='orbit the light instead of rotating the object'
+    )
     p.add_argument('--zoom', type=float, default=0.5)
-    p.add_argument('--radial', type=int, default=60)
-    p.add_argument('--angular', type=int, default=360)
+    p.add_argument('--radial', type=int, default=120)
+    p.add_argument('--angular', type=int, default=720)
     p.add_argument('--speed', type=float, default=0.5)
     p.add_argument('--vspeed', type=float)
     p.add_argument('--no-color', action='store_true')
     p.add_argument('--shape-path', type=str, default='shapes/boy.yaml')
     args = p.parse_args()
+
+    # Light direction is a global variable
+    global LIGHT_DIR
 
     vs = args.vspeed if args.vspeed is not None else args.speed
     signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
@@ -208,7 +214,6 @@ def main():
     L = math.sqrt(lx * lx + ly * ly + lz * lz) or 1.0
 
     # Set the light direction global variable
-    global LIGHT_DIR
     LIGHT_DIR = (lx / L, ly / L, lz / L)
 
     shape_path = Path(args.shape_path)
@@ -219,10 +224,29 @@ def main():
     t0 = time.time()
     sys.stdout.write('\033[?25l')
     try:
-        while True:
-            t = time.time() - t0
-            render(mesh, cols, rows, t * args.speed, t * vs, args.zoom, not args.no_color)
-            time.sleep(DELAY)
+        if args.orbit_light:
+            ω = args.speed
+            while True:
+                t = time.time() - t0
+
+                # polar-orbiting light (XZ plane)
+                lx = math.cos(ω * t)
+                ly = 0.9  # elevate the light
+                lz = math.sin(ω * t)
+                L = math.sqrt(lx * lx + ly * ly + lz * lz)
+
+                LIGHT_DIR = (lx / L, ly / L, lz / L)
+
+                render(
+                    mesh, cols, rows, 0.0, 0.0, args.zoom, not args.no_color  # keep object static
+                )
+
+                time.sleep(DELAY)
+        else:
+            while True:
+                t = time.time() - t0
+                render(mesh, cols, rows, t * args.speed, t * vs, args.zoom, not args.no_color)
+                time.sleep(DELAY)
     finally:
         sys.stdout.write('\033[?25h')
         sys.stdout.write('\n')

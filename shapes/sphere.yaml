@@ -1,0 +1,11 @@
+# Sphere
+vars: [u, v]
+domain:
+  u: [0, pi]
+  v: [0, 2*pi]
+equations: |
+  # u = polar angle [0..π], v = azimuthal angle [0..2π]
+  r = 1.0
+  x = r * sin(u) * cos(v)
+  y = r * sin(u) * sin(v)
+  z = r * cos(u)
