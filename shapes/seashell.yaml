@@ -1,0 +1,10 @@
+# Wikipedia seashell surface
+vars: [u, v]
+domain:
+  u: [0, 2*pi]
+  v: [0, 2*pi]
+equations: |
+  factor = (1 - v/(2*pi))
+  x = (5/4) * factor * cos(2*v) * (1 + cos(u)) + cos(2*v)
+  y = (5/4) * factor * sin(2*v) * (1 + cos(u)) + sin(2*v)
+  z = 10 * v / (2*pi) + (5/4) * factor * sin(u)
