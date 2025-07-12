@@ -1,0 +1,9 @@
+# Gabriel's Horn
+vars: [u, θ]              # two parameters
+domain:
+  u:   [1.0, 15.0]
+  θ:   [0, 6.283185307179586]   # 2π
+equations: |
+  x = (u - (u_max+u_min)/2) / ((u_max-u_min)/2)   # centre & scale
+  y = cos(θ) / u
+  z = sin(θ) / u

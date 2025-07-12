@@ -1,0 +1,16 @@
+# Top-level keys (all required):
+vars: [u, v]
+domain:
+  u: [0, 2*pi]
+  θ: [-0.5, 0.5]    # ← was “v: [...]”, must be “θ”
+equations: |
+  # Half-twist angle
+  half_twist = u / 2
+
+  # Radius of the central circle
+  R = 1
+
+  # Final coordinates:
+  x = (R + v * cos(half_twist)) * cos(u)
+  y = (R + v * cos(half_twist)) * sin(u)
+  z = v * sin(half_twist)
