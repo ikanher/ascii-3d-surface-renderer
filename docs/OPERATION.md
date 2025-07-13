@@ -1,75 +1,130 @@
-# Parametric-Surface ASCII Renderer – Theory of Operation  
- 
-This note explains *what* our program draws, *where* the math lives, and *why* the  
-implementation chooses a uniform “radial × angular” grid.  
- 
----  
-## 1 Surfaces in ℝ³  
-Every YAML file defines a smooth **parametric map**  
-\[  
-  \mathbf F(u,v)=\bigl(x(u,v),\,y(u,v),\,z(u,v)\bigr),  
-  \qquad (u,v)\in\mathcal D  
-\]  
-* **Target space**  \( \mathbb R^{3} \).  
-* **Parameter space**  \( \mathcal D=[u_{\min},u_{\max}]\times[v_{\min},v_{\max}]  
-  \subset\mathbb R^{2} \).  
-  The parametric patch is a *flat rectangle* even when the surface in 3-D curls or self-intersects.  
- 
-| YAML example | Mathematical identity | Domain \(\mathcal D\) | Topology hint |  
-|-------------|-----------------------|-----------------------|---------------|  
-| `boy.yaml`    | Souriau immersion of \( \mathbb{RP}^2 \) | \(u\!:\!0\to\pi,\;v\!:\!0\to2\pi\) | non-orientable |  
-| `torus.yaml`  | Standard donut       | \(u,v:0\to2\pi\)     | genus 1       |  
-| `horn.yaml`   | Gabriel’s horn       | \(u\!:\!1\to15,\;v:0\to2\pi\) | infinite volume |  
- 
----  
-## 2 Uniform grid in parameter space  
-We sample \(N_u=\mathtt{radial}\) points along \(u\) and \(N_v=\mathtt{angular}\) points along \(v\).  
-\[
-  u_i=u_{\min}+\Bigl(\tfrac{i+\tfrac12}{N_u}\Bigr)(u_{\max}-u_{\min}),\quad
-  v_j=v_{\min}+\Bigl(\tfrac{j}{N_v}\Bigr)(v_{\max}-v_{\min}),
-  \;i=0..N_u\!-\!1,\;j=0..N_v\!-\!1
-\]  
-* **Half-cell shift** on \(u\) keeps us away from boundary singularities.  
-* The grid is rectangular; “radial / angular” are just human-friendly names matching the usual interpretation for tori, spheres, Boy surface, etc.  
- 
----  
-## 3 Normals  
-*Analytic path (Python)* – `sympy.diff` yields  
-\(\mathbf F_u,\mathbf F_v\).  
-*Finite-difference path (Perl)* –  
-\[
-  \mathbf F_u \approx \frac{\mathbf F(u+\varepsilon,v)-\mathbf F(u,v)}{\varepsilon},\qquad
-  \mathbf F_v \approx \frac{\mathbf F(u,v+\varepsilon)-\mathbf F(u,v)}{\varepsilon}
-\]  
-Unit normal  
-\( \mathbf N=\dfrac{\mathbf F_u\times\mathbf F_v}{\lVert\mathbf F_u\times\mathbf F_v\rVert}. \)  
- 
----  
-## 4 From ℝ³ to terminal cells  
-1. **Rigid rotation** – two Euler angles  
-   \(R_y(\alpha_h)\,R_x(\alpha_v)\).  
-2. **Orthographic projection** – drop \(z\), scale by `zoom`.  
-3. **Screen mapping** –  
-   \((x_s,y_s)\in[-1,1]^2 \to (g_x,g_y)\in[0,\text{cols}-1]\times[0,\text{rows}-1]\).  
-4. **Depth buffer** – keep the largest \(z_s\) per cell.  
-5. **Lambertian shade** –  
-   \(I=\max(0,\,\mathbf N\!\cdot\!\mathbf L)^{\gamma}\).  
-6. **Quantise** – map \(I\) to 12-glyph gradient `.,-~:;=!*#$@` and 24 ANSI greys (`232…255`) using rounding (+0.5) so brightest dot reaches glyph ‘@’ and colour 255.  
- 
----  
-## 5 Why this grid is sufficient  
-* **Uniform density** keeps aliasing predictable.  
-* One sample → one cell ⇒ \(O(N_uN_v)\) work, no interpolation.  
-* For smooth surfaces the Nyquist rate is modest; Boy surface looks good at 60×360.  
-* All surfaces share the grid logic; only \(\mathbf F\) and its derivatives differ.  
- 
----  
-## 6 Extending / tweaking  
-* Increase `radial`,`angular` → finer surface detail (CPU cost ∝ grid size).  
-* Use adaptive ε in finite differences to stabilise high-curvature regions.  
-* Swap orthographic for weak-perspective:  
-  \( (x_s,y_s) = \dfrac{f}{f-z}\,(x,y) \).  
-* Multi-light: accumulate several \(I_k\) before quantising.  
- 
----  
-*Last updated 2025-07-13*
+# Parametric-Surface ASCII Renderer – Theory of Operation
+#
+# This note explains what the program draws, where the math lives, and why
+# the implementation uses a uniform “radial × angular” grid.
+#
+# ---
+#
+# 1. Surfaces in ℝ³
+#
+# Every YAML file defines a smooth parametric map:
+#
+#   F(u, v) = (x(u, v), y(u, v), z(u, v))
+#
+# with parameters (u, v) in a rectangle domain D:
+#
+#   D = [u_min, u_max] × [v_min, v_max]
+#
+# The parametric patch is a flat rectangle in (u, v) even if the 3D surface
+# curls around or self-intersects.
+#
+# Examples:
+#
+# | YAML          | Description                    | Domain                           | Topology           |
+# |---------------|--------------------------------|----------------------------------|---------------------|
+# | boy.yaml      | Souriau immersion of RP²       | u ∈ [0, π], v ∈ [0, 2π]          | Non-orientable     |
+# | torus.yaml    | Standard torus                 | u, v ∈ [0, 2π]                   | Genus 1            |
+# | horn.yaml     | Gabriel’s horn                 | u ∈ [1, 15], v ∈ [0, 2π]         | Infinite area      |
+#
+# ---
+#
+# 2. Uniform grid in parameter space
+#
+# We sample N₁ points along u and N₂ points along v:
+#
+#   uᵢ = u_min + ((i + 0.5)/N₁) × (u_max - u_min)
+#   vⱼ = v_min + (j / N₂) × (v_max - v_min)
+#
+# where i = 0…N₁-1, j = 0…N₂-1.
+#
+# Notes:
+# - The half-cell shift in u keeps points away from singularities at the boundary.
+# - The grid is always rectangular.
+# - The names “radial” and “angular” are for readability: in the torus they
+#   do correspond to radial and angular directions, but for more general surfaces
+#   they are just grid axes.
+#
+# ---
+#
+# 3. Normals
+#
+# In the Python version:
+#   ∂F/∂u and ∂F/∂v are computed with symbolic differentiation (SymPy).
+#
+# In the Perl version:
+#   Finite differences approximate the partial derivatives:
+#
+#     F_u ≈ [F(u + ε, v) - F(u, v)] / ε
+#     F_v ≈ [F(u, v + ε) - F(u, v)] / ε
+#
+# The normal vector is the cross product:
+#
+#     N_raw = F_u × F_v
+#
+# It is then normalised to unit length:
+#
+#     N = N_raw / |N_raw|
+#
+# ---
+#
+# 4. From ℝ³ to terminal cells
+#
+# 1. **Rotation**
+#    Two angles (horizontal and vertical) applied via Euler rotations:
+#      - Rotate around Y axis (horizontal spin)
+#      - Rotate around X axis (vertical tilt)
+#
+# 2. **Orthographic projection**
+#      Discard z and scale (x, y) by the zoom factor.
+#
+# 3. **Mapping to grid**
+#      Map (x_s, y_s) in [-1, +1] to (grid_x, grid_y):
+#
+#        grid_x = floor((x_s + 1) × 0.5 × (cols - 1))
+#        grid_y = rows - 1 - floor((y_s + 1) × 0.5 × (rows - 1))
+#
+# 4. **Depth buffer**
+#      For each cell, keep the highest z so closer surfaces overwrite farther ones.
+#
+# 5. **Lambertian shading**
+#      Compute:
+#
+#        I_raw = max(0, N ⋅ L)
+#        I = I_raw ^ gamma
+#
+#      where L is the light direction (normalized) and gamma ≈ 0.4.
+#
+# 6. **Quantisation**
+#      Map I to:
+#      - 12-glyph brightness gradient:
+#        ".,-~:;=!*#$@"
+#      - ANSI grayscale codes 232–255 for terminal colors.
+#
+#      Rounding (+0.5) ensures the brightest cell uses '@' and code 255.
+#
+# ---
+#
+# 5. Why this grid works
+#
+# - Uniform density makes aliasing predictable.
+# - One sample per grid cell: no interpolation needed.
+# - Complexity is O(N₁ × N₂) per frame.
+# - For smooth surfaces, ~60×360 samples are sufficient.
+# - Different YAML surfaces only change F(u, v) and its derivatives;
+#   the grid and renderer stay the same.
+#
+# ---
+#
+# 6. Extending and tweaking
+#
+# - Increase radial/angular resolution for more detail.
+# - Use adaptive ε for finite differences in high-curvature areas.
+# - Replace orthographic projection with weak perspective:
+#
+#      (x_proj, y_proj) = (f / (f - z)) × (x, y)
+#
+# - Add multiple lights by summing contributions before quantising.
+#
+# ---
+#
+# Last updated: 2025-07-13
