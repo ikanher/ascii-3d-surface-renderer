@@ -1,0 +1,9 @@
+# Cayley Cubic Cusp
+vars: [r, t]
+domain:
+  r: [-2, 2]
+  t: [-2, 2]
+equations: |
+  x = t
+  y = r**3 - r*t
+  z = r

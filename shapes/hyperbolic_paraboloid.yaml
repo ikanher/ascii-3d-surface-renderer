@@ -1,0 +1,9 @@
+# Hyperbolic Paraboloid: Z = X * Y
+vars: [u, v]
+domain:
+  u: [-1.5, 1.5]
+  v: [-1.5, 1.5]
+equations: |
+  x = u
+  y = v
+  z = u * v

@@ -1,0 +1,9 @@
+# Whitney Umbrella
+vars: [r, t]
+domain:
+  r: [-1.5, 1.5]
+  t: [-1.5, 1.5]
+equations: |
+  x = r
+  y = t**2
+  z = r * t
