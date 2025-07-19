@@ -29,7 +29,7 @@ def load_surface(path):
     # Read optional normal sign
     normal_sign = spec.get('normal_sign', 1)
     if normal_sign not in (-1, 1):
-        raise ValueError("normal_sign must be -1 or 1")
+        raise ValueError('normal_sign must be -1 or 1')
 
     # Make symbols
     symbols = [sp.Symbol(name) for name in var_names]
@@ -72,7 +72,7 @@ def load_surface(path):
     y_s = ns.get('y')
     z_s = ns.get('z')
     if not all((x_s, y_s, z_s)):
-        raise ValueError("`equations` must define x, y, z.")
+        raise ValueError('`equations` must define x, y, z.')
 
     # Derivatives
     xu, xv = sp.diff(x_s, var_a), sp.diff(x_s, var_b)
@@ -172,9 +172,7 @@ def render(mesh, cols, rows, ah, av, zoom, use_color):
         gy = rows - 1 - int((ys + 1) * 0.5 * (rows - 1))
         if 0 <= gx < cols and 0 <= gy < rows and zs > depth[gy][gx]:
             depth[gy][gx] = zs
-            intensity = max(
-                0.0, n1[0] * LIGHT_DIR[0] + n1[1] * LIGHT_DIR[1] + n1[2] * LIGHT_DIR[2]
-            )
+            intensity = max(0.0, n1[0] * LIGHT_DIR[0] + n1[1] * LIGHT_DIR[1] + n1[2] * LIGHT_DIR[2])
             # gamma boost
             # intensity = math.sqrt(intensity)
             intensity **= 0.4
@@ -197,7 +195,7 @@ def main():
     p.add_argument('--speed', type=float, default=0.5)
     p.add_argument('--vspeed', type=float)
     p.add_argument('--no-color', action='store_true')
-    p.add_argument('--shape-path', type=str, default='shapes/boy.yaml')
+    p.add_argument('--shape-path', type=str, default='shapes/torus.yaml')
     args = p.parse_args()
 
     # Light direction is a global variable
@@ -238,7 +236,13 @@ def main():
                 LIGHT_DIR = (lx / L, ly / L, lz / L)
 
                 render(
-                    mesh, cols, rows, 0.0, 0.0, args.zoom, not args.no_color  # keep object static
+                    mesh,
+                    cols,
+                    rows,
+                    0.0,
+                    0.0,
+                    args.zoom,
+                    not args.no_color,  # keep object static
                 )
 
                 time.sleep(DELAY)
